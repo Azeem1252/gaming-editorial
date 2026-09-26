@@ -87,14 +87,6 @@ export async function POST(request: NextRequest) {
     };
 
     // 3. Storage: Save or upsert to content/posts/[slug].mdx
-    const contentDir = path.join(process.cwd(), "content", "posts");
-    if (!fs.existsSync(contentDir)) {
-      fs.mkdirSync(contentDir, { recursive: true });
-    }
-
-    const mdxPath = path.join(contentDir, `${cleanSlug}.mdx`);
-    const jsonPath = path.join(contentDir, `${cleanSlug}.json`);
-
     // Format frontmatter for MDX
     const frontmatter = [
       "---",
@@ -112,11 +104,34 @@ export async function POST(request: NextRequest) {
       article.content,
     ].join("\n");
 
-    // Write MDX file (specification requirement)
-    fs.writeFileSync(mdxPath, frontmatter, "utf-8");
+    const targetDirs = [
+      path.join(process.cwd(), "content", "posts"),
+      path.join(require("os").tmpdir(), "posts"),
+    ];
 
-    // Also write JSON file for direct, high-fidelity loading by Next.js Server Components
-    fs.writeFileSync(jsonPath, JSON.stringify(article, null, 2), "utf-8");
+    let saved = false;
+    for (const dir of targetDirs) {
+      try {
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(path.join(dir, `${cleanSlug}.mdx`), frontmatter, "utf-8");
+        fs.writeFileSync(
+          path.join(dir, `${cleanSlug}.json`),
+          JSON.stringify(article, null, 2),
+          "utf-8"
+        );
+        saved = true;
+        break;
+      } catch (writeErr: any) {
+        // Fallback to next directory if current one is read-only (e.g. Vercel serverless)
+        console.warn(`Write to ${dir} failed, attempting fallback:`, writeErr?.message);
+      }
+    }
+
+    if (!saved) {
+      throw new Error("Unable to write article to disk or temporary storage");
+    }
 
     // Revalidate paths in Next.js cache
     try {
