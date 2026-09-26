@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import os from "os";
 import { revalidatePath } from "next/cache";
 
 export interface ArticlePayload {
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     const targetDirs = [
       path.join(process.cwd(), "content", "posts"),
-      path.join(require("os").tmpdir(), "posts"),
+      path.join(os.tmpdir(), "posts"),
     ];
 
     let saved = false;
