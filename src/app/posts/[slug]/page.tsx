@@ -6,6 +6,7 @@ import { renderMarkdown } from "@/lib/markdown";
 import ArtPlate from "@/components/ArtPlate";
 import ScoreBadge from "@/components/ScoreBadge";
 
+export const dynamic = "force-dynamic";
 export const dynamicParams = true;
 
 export function generateStaticParams() {
