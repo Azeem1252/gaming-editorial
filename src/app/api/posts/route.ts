@@ -1,0 +1,146 @@
+import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
+import { revalidatePath } from "next/cache";
+
+export interface ArticlePayload {
+  title: string;
+  slug: string;
+  content: string;
+  html?: string;
+  excerpt?: string;
+  meta_title?: string;
+  meta_description?: string;
+  hero_image_url?: string;
+  tags?: string[];
+  author?: string;
+}
+
+export async function GET() {
+  return NextResponse.json(
+    {
+      status: "ready",
+      endpoint: "/api/posts",
+      method: "POST",
+      description: "Content Pipeline Agent article publishing endpoint",
+    },
+    { status: 200 }
+  );
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // 1. Security Check
+    const authHeader =
+      request.headers.get("authorization") || request.headers.get("Authorization");
+    const expectedToken = process.env.AGENT_SECRET_TOKEN;
+
+    if (!expectedToken || !authHeader) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Verify Bearer token
+    const parts = authHeader.trim().split(/\s+/);
+    if (
+      parts.length !== 2 ||
+      parts[0].toLowerCase() !== "bearer" ||
+      parts[1] !== expectedToken
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // 2. Parse & Validate Payload
+    let body: ArticlePayload;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    if (!body || !body.title || !body.slug) {
+      return NextResponse.json(
+        { error: "Missing required fields: title and slug are required" },
+        { status: 400 }
+      );
+    }
+
+    // Normalize slug
+    const cleanSlug = body.slug
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9-_]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    const article = {
+      title: body.title,
+      slug: cleanSlug,
+      content: body.content || "",
+      html: body.html || "",
+      excerpt: body.excerpt || "",
+      meta_title: body.meta_title || body.title,
+      meta_description: body.meta_description || body.excerpt || "",
+      hero_image_url: body.hero_image_url || "",
+      tags: Array.isArray(body.tags) ? body.tags : [],
+      author: body.author || "Editorial Desk",
+      publishedAt: new Date().toISOString(),
+    };
+
+    // 3. Storage: Save or upsert to content/posts/[slug].mdx
+    const contentDir = path.join(process.cwd(), "content", "posts");
+    if (!fs.existsSync(contentDir)) {
+      fs.mkdirSync(contentDir, { recursive: true });
+    }
+
+    const mdxPath = path.join(contentDir, `${cleanSlug}.mdx`);
+    const jsonPath = path.join(contentDir, `${cleanSlug}.json`);
+
+    // Format frontmatter for MDX
+    const frontmatter = [
+      "---",
+      `title: ${JSON.stringify(article.title)}`,
+      `slug: ${JSON.stringify(article.slug)}`,
+      `excerpt: ${JSON.stringify(article.excerpt)}`,
+      `meta_title: ${JSON.stringify(article.meta_title)}`,
+      `meta_description: ${JSON.stringify(article.meta_description)}`,
+      `hero_image_url: ${JSON.stringify(article.hero_image_url)}`,
+      `tags: ${JSON.stringify(article.tags)}`,
+      `author: ${JSON.stringify(article.author)}`,
+      `publishedAt: ${JSON.stringify(article.publishedAt)}`,
+      "---",
+      "",
+      article.content,
+    ].join("\n");
+
+    // Write MDX file (specification requirement)
+    fs.writeFileSync(mdxPath, frontmatter, "utf-8");
+
+    // Also write JSON file for direct, high-fidelity loading by Next.js Server Components
+    fs.writeFileSync(jsonPath, JSON.stringify(article, null, 2), "utf-8");
+
+    // Revalidate paths in Next.js cache
+    try {
+      revalidatePath(`/posts/${cleanSlug}`);
+      revalidatePath("/posts");
+      revalidatePath("/");
+    } catch {
+      // Ignore if revalidation is not available in current execution context
+    }
+
+    // 4. Return standard response
+    return NextResponse.json(
+      {
+        status: "success",
+        slug: cleanSlug,
+        url: `/posts/${cleanSlug}`,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error processing post publication:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}

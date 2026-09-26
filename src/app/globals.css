@@ -1,0 +1,297 @@
+/* GameSphere — Gaming news & reviews
+   Light newsprint base, near-black ink, red accent (#e11d2e).
+   Fraunces: display serif headlines · Inter: UI + body · mono: meta */
+
+:root {
+  /* Light theme */
+  --bg: #ffffff;
+  --bg-soft: #f7f7f8;
+  --panel: #fafafa;
+  --ink: #17181c;
+  --ink-dim: #5c6068;
+  --ink-faint: #9a9ea6;
+  --hairline: #e8e8ea;
+  --hairline-strong: #d4d5d8;
+  --accent: #e11d2e;
+  --accent-deep: #b30f1e;
+  --on-accent: #ffffff;
+
+  /* Dark surfaces (header, hero, footer) */
+  --dark: #101114;
+  --dark-2: #17181c;
+  --dark-3: #1f2026;
+  --dark-hairline: rgba(255, 255, 255, 0.09);
+  --bone: #f5f6f7;
+  --bone-dim: rgba(245, 246, 247, 0.64);
+  --bone-faint: rgba(245, 246, 247, 0.4);
+
+  /* Type */
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius: 10px;
+  --radius-lg: 14px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+}
+
+main {
+  display: block;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+input {
+  font: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+/* ---------- shared primitives ---------- */
+
+.wrap {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+@media (min-width: 768px) {
+  .wrap {
+    padding-inline: 24px;
+  }
+}
+
+/* Serif display headline */
+.display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.08;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.dim { color: var(--ink-dim); }
+.faint { color: var(--ink-faint); }
+
+/* Red pill label — FEATURE / GUIDE / REVIEW / NEWS */
+.kind-pill {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
+.kind-pill-dark {
+  background: rgba(16, 17, 20, 0.85);
+  color: var(--bone);
+}
+
+/* Section header row: icon + title left, "View All" right */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.section-title svg {
+  color: var(--accent);
+}
+
+.section-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.section-more:hover { color: var(--accent-deep); }
+
+/* Red solid button */
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--on-accent);
+  background: var(--accent);
+  padding: 11px 20px;
+  border-radius: 8px;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.btn-accent:hover { background: var(--accent-deep); }
+.btn-accent:active { transform: translateY(1px); }
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  border: 1px solid var(--hairline-strong);
+  padding: 10px 19px;
+  border-radius: 8px;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-outline:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Numbered ranking row (Trending Now / hero list) */
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.rank-num {
+  width: 24px;
+  flex: none;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-faint);
+}
+
+.rank-art {
+  position: relative;
+  width: 64px;
+  height: 46px;
+  flex: none;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.rank-art .plate { position: absolute; inset: 0; }
+
+.rank-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  transition: color 0.15s ease;
+}
+
+.rank-row:hover .rank-title { color: var(--accent); }
+
+.rank-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-dim);
+  margin-top: 2px;
+}
+
+/* Newsletter forms */
+.news-input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 13.5px;
+  color: var(--ink);
+  background: var(--bg);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.news-input::placeholder { color: var(--ink-faint); }
+.news-input:focus { border-color: var(--accent); }
+
+.news-input-dark {
+  background: var(--dark-3);
+  border-color: var(--dark-hairline);
+  color: var(--bone);
+}
+
+.news-input-dark::placeholder { color: var(--bone-faint); }
+.news-input-dark:focus { border-color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
