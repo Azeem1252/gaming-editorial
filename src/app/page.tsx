@@ -13,19 +13,11 @@ import {
   Swords,
   Trophy,
 } from "lucide-react";
-import { posts } from "@/lib/posts";
+import { posts, getAllPosts } from "@/lib/posts";
 import PostCard from "@/components/PostCard";
 import ArtPlate from "@/components/ArtPlate";
 
-const FEATURE = posts[0];
-
-const TRENDING = [
-  posts[1],
-  posts[0],
-  posts[2],
-  posts[3],
-  posts[4],
-];
+export const dynamic = "force-dynamic";
 
 const FILTERS = [
   { label: "All", icon: LayoutGrid },
@@ -49,6 +41,10 @@ const GENRES: Record<string, string> = {
 const VIDEO_DURATIONS = ["12:34", "15:21", "08:45", "11:17"];
 
 export default function HomePage() {
+  const allPosts = getAllPosts();
+  const FEATURE = allPosts[0] || posts[0];
+  const TRENDING = allPosts.slice(0, 5);
+
   return (
     <main>
       {/* ============ HERO + TRENDING RAIL ============ */}
@@ -137,7 +133,7 @@ export default function HomePage() {
               </div>
 
               <div className="article-grid">
-                {posts.slice(0, 3).map((p) => (
+                {allPosts.slice(0, 6).map((p) => (
                   <PostCard key={p.slug} post={p} />
                 ))}
               </div>
@@ -156,7 +152,7 @@ export default function HomePage() {
               </div>
 
               <div className="games-grid">
-                {posts.map((p) => (
+                {allPosts.slice(0, 6).map((p) => (
                   <Link key={p.slug} href={`/posts/${p.slug}`} className="game-tile">
                     <span className="game-art">
                       <ArtPlate art={p.art} label={p.game} />
@@ -181,14 +177,14 @@ export default function HomePage() {
               </div>
 
               <div className="video-grid">
-                {posts.slice(0, 4).map((p, i) => (
+                {allPosts.slice(0, 4).map((p, i) => (
                   <Link key={p.slug} href={`/posts/${p.slug}`} className="video-item">
                     <span className="video-thumb">
                       <ArtPlate art={p.art} />
                       <span className="video-play" aria-hidden="true">
                         <Play size={13} fill="currentColor" />
                       </span>
-                      <span className="video-dur">{VIDEO_DURATIONS[i]}</span>
+                      <span className="video-dur">{VIDEO_DURATIONS[i] || "10:00"}</span>
                     </span>
                     <span className="video-title">
                       {p.game} — {p.title}

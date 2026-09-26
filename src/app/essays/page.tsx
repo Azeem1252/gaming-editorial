@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { posts } from "@/lib/posts";
+import { getAllPosts } from "@/lib/posts";
 import PostCard from "@/components/PostCard";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "News & Essays",
@@ -8,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default function EssaysPage() {
-  const essays = posts.filter((p) => p.kind === "Essay");
+  const essays = getAllPosts().filter((p) => p.kind === "Essay");
 
   return (
     <main>

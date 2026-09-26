@@ -169,6 +169,68 @@ export const posts: Post[] = [
   },
 ];
 
+export function formatPostFromData(
+  data: Record<string, any>,
+  slug: string,
+  rawContent?: string
+): Post {
+  const dateObj = data.publishedAt ? new Date(data.publishedAt) : new Date();
+  const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  const fullMonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const displayDate = `${monthNames[dateObj.getMonth()]} ${String(dateObj.getDate()).padStart(2, "0")}`;
+  const dateFull = `${fullMonthNames[dateObj.getMonth()]} ${dateObj.getDate()}, ${dateObj.getFullYear()}`;
+  const dateISO = isNaN(dateObj.getTime()) ? new Date().toISOString().split("T")[0] : dateObj.toISOString().split("T")[0];
+
+  const contentText = rawContent || data.content || data.html || "";
+  const paragraphs = contentText
+    .replace(/<[^>]+>/g, "\n\n")
+    .split(/\n\n+/)
+    .map((p: string) => p.trim())
+    .filter(Boolean);
+
+  const wordCount = contentText.split(/\s+/).filter(Boolean).length;
+  const readMin = Math.max(1, Math.ceil(wordCount / 200));
+
+  const palettes: [string, string][] = [
+    ["#1b3a4b", "#f0b429"],
+    ["#3d1f4e", "#e5484d"],
+    ["#4a2c17", "#f0b429"],
+    ["#0f2e25", "#9fd8b8"],
+    ["#2b2b2b", "#f2ebdc"],
+    ["#1a2a3a", "#e07a5f"],
+  ];
+  let hash = 0;
+  for (let i = 0; i < slug.length; i++) hash = (hash * 31 + slug.charCodeAt(i)) | 0;
+  const art = palettes[Math.abs(hash) % palettes.length];
+
+  return {
+    slug: data.slug || slug,
+    title: data.title || "Untitled Article",
+    dek: data.excerpt || data.meta_description || "",
+    date: displayDate,
+    dateFull,
+    dateISO,
+    runtime: `${readMin} MIN`,
+    game: (Array.isArray(data.tags) && data.tags[0]) || "Editorial",
+    platform: (Array.isArray(data.tags) && data.tags[1]) || "Feature",
+    studio: data.author || "Editorial Desk",
+    score: null,
+    code: `A-${String(Math.abs(hash) % 90 + 10)}`,
+    kind: "Essay",
+    art,
+    quote: data.excerpt || data.title || "",
+    body: paragraphs.length > 0 ? paragraphs : ["No content provided."],
+    content: data.content,
+    html: data.html,
+    excerpt: data.excerpt,
+    meta_title: data.meta_title,
+    meta_description: data.meta_description,
+    hero_image_url: data.hero_image_url,
+    tags: Array.isArray(data.tags) ? data.tags : [],
+    author: data.author || "Editorial Desk",
+  };
+}
+
 function getStoredPosts(): Post[] {
   if (typeof window !== "undefined") return [];
   try {
@@ -206,101 +268,48 @@ function getStoredPosts(): Post[] {
         let data: Record<string, any> = {};
         let rawContent = "";
 
-      if (fs.existsSync(jsonPath)) {
-        try {
-          data = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
-          rawContent = data.content || "";
-        } catch {
-          // ignore
+        if (fs.existsSync(jsonPath)) {
+          try {
+            data = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+            rawContent = data.content || "";
+          } catch {
+            // ignore
+          }
         }
-      }
 
-      if (fs.existsSync(mdxPath) && (!data.title || !data.content)) {
-        try {
-          const mdx = fs.readFileSync(mdxPath, "utf-8");
-          const fmMatch = mdx.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
-          if (fmMatch) {
-            rawContent = rawContent || fmMatch[2].trim();
-            const lines = fmMatch[1].split("\n");
-            for (const line of lines) {
-              const colonIdx = line.indexOf(":");
-              if (colonIdx > 0) {
-                const key = line.slice(0, colonIdx).trim();
-                const val = line.slice(colonIdx + 1).trim();
-                try {
-                  data[key] = data[key] || JSON.parse(val);
-                } catch {
-                  data[key] = data[key] || val.replace(/^["']|["']$/g, "");
+        if (fs.existsSync(mdxPath) && (!data.title || !data.content)) {
+          try {
+            const mdx = fs.readFileSync(mdxPath, "utf-8");
+            const fmMatch = mdx.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+            if (fmMatch) {
+              rawContent = rawContent || fmMatch[2].trim();
+              const lines = fmMatch[1].split("\n");
+              for (const line of lines) {
+                const colonIdx = line.indexOf(":");
+                if (colonIdx > 0) {
+                  const key = line.slice(0, colonIdx).trim();
+                  const val = line.slice(colonIdx + 1).trim();
+                  try {
+                    data[key] = data[key] || JSON.parse(val);
+                  } catch {
+                    data[key] = data[key] || val.replace(/^["']|["']$/g, "");
+                  }
                 }
               }
             }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
         }
+
+        if (!data.title && !data.slug) continue;
+
+        result.push(formatPostFromData(data, slug, rawContent));
+        processedSlugs.add(slug);
       }
-
-      if (!data.title && !data.slug) continue;
-
-      const dateObj = data.publishedAt ? new Date(data.publishedAt) : new Date();
-      const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-      const fullMonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const displayDate = `${monthNames[dateObj.getMonth()]} ${String(dateObj.getDate()).padStart(2, "0")}`;
-      const dateFull = `${fullMonthNames[dateObj.getMonth()]} ${dateObj.getDate()}, ${dateObj.getFullYear()}`;
-      const dateISO = dateObj.toISOString().split("T")[0];
-
-      const paragraphs = (rawContent || data.html || "")
-        .replace(/<[^>]+>/g, "\n\n")
-        .split(/\n\n+/)
-        .map((p: string) => p.trim())
-        .filter(Boolean);
-
-      const wordCount = (rawContent || "").split(/\s+/).filter(Boolean).length;
-      const readMin = Math.max(1, Math.ceil(wordCount / 200));
-
-      const palettes: [string, string][] = [
-        ["#1b3a4b", "#f0b429"],
-        ["#3d1f4e", "#e5484d"],
-        ["#4a2c17", "#f0b429"],
-        ["#0f2e25", "#9fd8b8"],
-        ["#2b2b2b", "#f2ebdc"],
-        ["#1a2a3a", "#e07a5f"],
-      ];
-      let hash = 0;
-      for (let i = 0; i < slug.length; i++) hash = (hash * 31 + slug.charCodeAt(i)) | 0;
-      const art = palettes[Math.abs(hash) % palettes.length];
-
-      result.push({
-        slug: data.slug || slug,
-        title: data.title || "Untitled Article",
-        dek: data.excerpt || data.meta_description || "",
-        date: displayDate,
-        dateFull,
-        dateISO,
-        runtime: `${readMin} MIN`,
-        game: (Array.isArray(data.tags) && data.tags[0]) || "Editorial",
-        platform: (Array.isArray(data.tags) && data.tags[1]) || "Feature",
-        studio: data.author || "Editorial Desk",
-        score: null,
-        code: `A-${String(Math.abs(hash) % 90 + 10)}`,
-        kind: "Essay",
-        art,
-        quote: data.excerpt || data.title || "",
-        body: paragraphs.length > 0 ? paragraphs : ["No content provided."],
-        content: data.content,
-        html: data.html,
-        excerpt: data.excerpt,
-        meta_title: data.meta_title,
-        meta_description: data.meta_description,
-        hero_image_url: data.hero_image_url,
-        tags: Array.isArray(data.tags) ? data.tags : [],
-        author: data.author || "Editorial Desk",
-      });
-      processedSlugs.add(slug);
     }
-  }
 
-  return result;
+    return result;
   } catch (err) {
     console.error("Error reading stored posts:", err);
     return [];
@@ -311,11 +320,35 @@ export function getAllPosts(): Post[] {
   const dynamicPosts = getStoredPosts();
   const dynamicSlugs = new Set(dynamicPosts.map((p) => p.slug));
   const basePosts = posts.filter((p) => !dynamicSlugs.has(p.slug));
-  return [...dynamicPosts, ...basePosts];
+  const combined = [...dynamicPosts, ...basePosts];
+  return combined.sort((a, b) => (b.dateISO || "").localeCompare(a.dateISO || ""));
 }
 
 export function getPostBySlug(slug: string): Post | undefined {
   const all = getAllPosts();
   return all.find((p) => p.slug === slug);
+}
+
+export async function getPostBySlugAsync(slug: string): Promise<Post | undefined> {
+  const local = getPostBySlug(slug);
+  if (local) return local;
+
+  // Remote GitHub Raw fallback (public repo, fast CDN)
+  try {
+    const rawRes = await fetch(
+      `https://raw.githubusercontent.com/Azeem1252/gaming-editorial/main/content/posts/${slug}.json`,
+      { next: { revalidate: 60 } }
+    );
+    if (rawRes.ok) {
+      const data = await rawRes.json();
+      if (data && (data.title || data.slug)) {
+        return formatPostFromData(data, slug, data.content || "");
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return undefined;
 }
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { posts, getAllPosts, getPostBySlug } from "@/lib/posts";
+import { posts, getAllPosts, getPostBySlug, getPostBySlugAsync } from "@/lib/posts";
 import ArtPlate from "@/components/ArtPlate";
 import ScoreBadge from "@/components/ScoreBadge";
 
@@ -17,7 +17,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const post = getPostBySlug(slug) || posts.find((p) => p.slug === slug);
+  const post = (await getPostBySlugAsync(slug)) || getPostBySlug(slug) || posts.find((p) => p.slug === slug);
   if (!post) return {};
   return {
     title: post.meta_title || post.title,
@@ -33,7 +33,7 @@ export default async function PostPage({
 }) {
   const { slug } = await params;
   const allPosts = getAllPosts();
-  const post = getPostBySlug(slug) || posts.find((p) => p.slug === slug);
+  const post = (await getPostBySlugAsync(slug)) || getPostBySlug(slug) || posts.find((p) => p.slug === slug);
   if (!post) notFound();
 
   const idx = allPosts.findIndex((p) => p.slug === slug);
