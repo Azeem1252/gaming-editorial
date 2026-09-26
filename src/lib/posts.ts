@@ -169,6 +169,8 @@ export const posts: Post[] = [
   },
 ];
 
+import { renderMarkdown, sanitizeHtml, stripDuplicateTitle } from "./markdown";
+
 export function formatPostFromData(
   data: Record<string, any>,
   slug: string,
@@ -181,14 +183,20 @@ export function formatPostFromData(
   const dateFull = `${fullMonthNames[dateObj.getMonth()]} ${dateObj.getDate()}, ${dateObj.getFullYear()}`;
   const dateISO = isNaN(dateObj.getTime()) ? new Date().toISOString().split("T")[0] : dateObj.toISOString().split("T")[0];
 
-  const contentText = rawContent || data.content || data.html || "";
-  const paragraphs = contentText
+  const rawText = rawContent || data.content || "";
+  let html = data.html ? sanitizeHtml(data.html) : "";
+  if (!html && rawText) {
+    html = renderMarkdown(rawText, data.title);
+  }
+
+  const cleanedForBody = stripDuplicateTitle(rawText || data.html || "", data.title);
+  const paragraphs = cleanedForBody
     .replace(/<[^>]+>/g, "\n\n")
     .split(/\n\n+/)
     .map((p: string) => p.trim())
     .filter(Boolean);
 
-  const wordCount = contentText.split(/\s+/).filter(Boolean).length;
+  const wordCount = (rawText || data.html || "").split(/\s+/).filter(Boolean).length;
   const readMin = Math.max(1, Math.ceil(wordCount / 200));
 
   const palettes: [string, string][] = [
@@ -221,7 +229,7 @@ export function formatPostFromData(
     quote: data.excerpt || data.title || "",
     body: paragraphs.length > 0 ? paragraphs : ["No content provided."],
     content: data.content,
-    html: data.html,
+    html,
     excerpt: data.excerpt,
     meta_title: data.meta_title,
     meta_description: data.meta_description,

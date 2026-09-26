@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { posts, getAllPosts, getPostBySlug, getPostBySlugAsync } from "@/lib/posts";
+import { renderMarkdown } from "@/lib/markdown";
 import ArtPlate from "@/components/ArtPlate";
 import ScoreBadge from "@/components/ScoreBadge";
 
@@ -110,6 +111,13 @@ export default async function PostPage({
               <div
                 className="article-rich-content"
                 dangerouslySetInnerHTML={{ __html: post.html }}
+              />
+            ) : post.content ? (
+              <div
+                className="article-rich-content"
+                dangerouslySetInnerHTML={{
+                  __html: renderMarkdown(post.content, post.title),
+                }}
               />
             ) : (
               post.body.map((para, i) => (

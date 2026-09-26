@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { revalidatePath } from "next/cache";
+import { renderMarkdown } from "@/lib/markdown";
 
 export interface ArticlePayload {
   title: string;
@@ -74,11 +75,14 @@ export async function POST(request: NextRequest) {
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "");
 
+    const rawContent = body.content || "";
+    const renderedHtml = body.html || renderMarkdown(rawContent, body.title);
+
     const article = {
       title: body.title,
       slug: cleanSlug,
-      content: body.content || "",
-      html: body.html || "",
+      content: rawContent,
+      html: renderedHtml,
       excerpt: body.excerpt || "",
       meta_title: body.meta_title || body.title,
       meta_description: body.meta_description || body.excerpt || "",
