@@ -20,6 +20,7 @@ export async function GET() {
   return NextResponse.json(
     {
       status: "ready",
+      version: "1.0.1",
       endpoint: "/api/posts",
       method: "POST",
       description: "Content Pipeline Agent article publishing endpoint",
@@ -151,10 +152,10 @@ export async function POST(request: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error processing post publication:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error?.message || "Internal server error" },
       { status: 500 }
     );
   }
