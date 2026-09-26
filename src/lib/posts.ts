@@ -174,27 +174,36 @@ function getStoredPosts(): Post[] {
   try {
     const fs = require("fs");
     const path = require("path");
-    const contentDir = path.join(process.cwd(), "content", "posts");
-    if (!fs.existsSync(contentDir)) return [];
+    const contentDirs = [
+      path.join(process.cwd(), "content", "posts"),
+      path.join(require("os").tmpdir(), "posts"),
+    ];
 
-    const files: string[] = fs.readdirSync(contentDir);
     const result: Post[] = [];
-    const slugs = new Set<string>();
+    const processedSlugs = new Set<string>();
 
-    for (const file of files) {
-      if (file.endsWith(".json")) {
-        slugs.add(file.replace(/\.json$/, ""));
-      } else if (file.endsWith(".mdx")) {
-        slugs.add(file.replace(/\.mdx$/, ""));
+    for (const contentDir of contentDirs) {
+      if (!fs.existsSync(contentDir)) continue;
+
+      const files: string[] = fs.readdirSync(contentDir);
+      const slugs = new Set<string>();
+
+      for (const file of files) {
+        if (file.endsWith(".json")) {
+          slugs.add(file.replace(/\.json$/, ""));
+        } else if (file.endsWith(".mdx")) {
+          slugs.add(file.replace(/\.mdx$/, ""));
+        }
       }
-    }
 
-    for (const slug of Array.from(slugs)) {
-      const jsonPath = path.join(contentDir, `${slug}.json`);
-      const mdxPath = path.join(contentDir, `${slug}.mdx`);
+      for (const slug of Array.from(slugs)) {
+        if (processedSlugs.has(slug)) continue;
 
-      let data: Record<string, any> = {};
-      let rawContent = "";
+        const jsonPath = path.join(contentDir, `${slug}.json`);
+        const mdxPath = path.join(contentDir, `${slug}.mdx`);
+
+        let data: Record<string, any> = {};
+        let rawContent = "";
 
       if (fs.existsSync(jsonPath)) {
         try {
@@ -286,9 +295,11 @@ function getStoredPosts(): Post[] {
         tags: Array.isArray(data.tags) ? data.tags : [],
         author: data.author || "Editorial Desk",
       });
+      processedSlugs.add(slug);
     }
+  }
 
-    return result;
+  return result;
   } catch (err) {
     console.error("Error reading stored posts:", err);
     return [];
