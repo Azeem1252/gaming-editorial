@@ -174,9 +174,10 @@ function getStoredPosts(): Post[] {
   try {
     const fs = require("fs");
     const path = require("path");
+    const os = require("os");
     const contentDirs = [
       path.join(process.cwd(), "content", "posts"),
-      path.join(require("os").tmpdir(), "posts"),
+      path.join(os.tmpdir(), "posts"),
     ];
 
     const result: Post[] = [];
