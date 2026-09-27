@@ -18,6 +18,21 @@ export interface ArticlePayload {
   author?: string;
 }
 
+export const maxDuration = 30;
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-nextjs-agent-secret",
+};
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: CORS_HEADERS,
+  });
+}
+
 export async function GET() {
   return NextResponse.json(
     {
@@ -32,7 +47,7 @@ export async function GET() {
       },
       description: "Content Pipeline Agent serverless article publishing endpoint",
     },
-    { status: 200 }
+    { status: 200, headers: CORS_HEADERS }
   );
 }
 
@@ -113,22 +128,26 @@ async function saveToGitHub(slug: string, article: any): Promise<boolean> {
 export async function POST(request: NextRequest) {
   try {
     // 1. Security Check
-    const authHeader =
-      request.headers.get("authorization") || request.headers.get("Authorization");
-    const expectedToken = process.env.AGENT_SECRET_TOKEN;
+    const rawAuth =
+      request.headers.get("authorization") ||
+      request.headers.get("Authorization") ||
+      request.headers.get("x-nextjs-agent-secret") ||
+      "";
+    const expectedToken = process.env.AGENT_SECRET_TOKEN?.trim();
 
-    if (!expectedToken || !authHeader) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!expectedToken || !rawAuth.trim()) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS });
     }
 
-    // Verify Bearer token
-    const parts = authHeader.trim().split(/\s+/);
-    if (
-      parts.length !== 2 ||
-      parts[0].toLowerCase() !== "bearer" ||
-      parts[1] !== expectedToken
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Verify token (support both 'Bearer <token>', raw token, or custom header)
+    const parts = rawAuth.trim().split(/\s+/);
+    const providedToken =
+      parts.length === 2 && parts[0].toLowerCase() === "bearer"
+        ? parts[1].trim()
+        : rawAuth.trim();
+
+    if (providedToken !== expectedToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS });
     }
 
     // 2. Parse & Validate Payload
@@ -136,23 +155,31 @@ export async function POST(request: NextRequest) {
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400, headers: CORS_HEADERS });
     }
 
     if (!body || !body.title || !body.slug) {
       return NextResponse.json(
         { error: "Missing required fields: title and slug are required" },
-        { status: 400 }
+        { status: 400, headers: CORS_HEADERS }
       );
     }
 
-    // Normalize slug
-    const cleanSlug = body.slug
+    // Normalize slug & protect reserved paths
+    let cleanSlug = body.slug
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9-_]/g, "-")
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "");
+
+    const RESERVED_SLUGS = new Set([
+      "api", "posts", "reviews", "categories", "about", "admin", "static",
+      "_next", "favicon", "sitemap", "robots", "login", "register", "dashboard"
+    ]);
+    if (RESERVED_SLUGS.has(cleanSlug)) {
+      cleanSlug = `${cleanSlug}-post`;
+    }
 
     const rawContent = body.content || "";
     const renderedHtml = body.html || renderMarkdown(rawContent, body.title);
@@ -242,13 +269,13 @@ export async function POST(request: NextRequest) {
         url: `/posts/${cleanSlug}`,
         engines: storedEngines,
       },
-      { status: 200 }
+      { status: 200, headers: CORS_HEADERS }
     );
   } catch (error: any) {
     console.error("Error processing post publication:", error);
     return NextResponse.json(
       { error: error?.message || "Internal server error" },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     );
   }
 }
