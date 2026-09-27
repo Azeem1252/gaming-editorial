@@ -13,7 +13,7 @@ import {
   Swords,
   Trophy,
 } from "lucide-react";
-import { posts, getAllPosts } from "@/lib/posts";
+import { posts, getAllPosts, getAllPostsAsync } from "@/lib/posts";
 import PostCard from "@/components/PostCard";
 import ArtPlate from "@/components/ArtPlate";
 
@@ -40,8 +40,8 @@ const GENRES: Record<string, string> = {
 
 const VIDEO_DURATIONS = ["12:34", "15:21", "08:45", "11:17"];
 
-export default function HomePage() {
-  const allPosts = getAllPosts();
+export default async function HomePage() {
+  const allPosts = await getAllPostsAsync();
   const FEATURE = allPosts[0] || posts[0];
   const TRENDING = allPosts.slice(0, 5);
 

@@ -22,13 +22,92 @@ export async function GET() {
   return NextResponse.json(
     {
       status: "ready",
-      version: "1.0.1",
+      version: "2.1.0",
       endpoint: "/api/posts",
       method: "POST",
-      description: "Content Pipeline Agent article publishing endpoint",
+      storage_engines: {
+        upstash_redis: Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN),
+        github_api: Boolean(process.env.GITHUB_TOKEN && process.env.GITHUB_REPO),
+        local_disk: true
+      },
+      description: "Content Pipeline Agent serverless article publishing endpoint",
     },
     { status: 200 }
   );
+}
+
+// Storage Engine 1: Upstash Redis REST (Instant 0s serverless publishing)
+async function saveToUpstash(slug: string, article: any): Promise<boolean> {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/+$/, "");
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return false;
+
+  try {
+    const setRes = await fetch(`${url}/set/post:${slug}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(article)
+    });
+    await fetch(`${url}/sadd/posts:index/${slug}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return setRes.ok;
+  } catch (err) {
+    console.error("[Storage] Upstash Redis write error:", err);
+    return false;
+  }
+}
+
+// Storage Engine 2: GitHub API Direct Cloud Commit (No local git push required)
+async function saveToGitHub(slug: string, article: any): Promise<boolean> {
+  const token = process.env.GITHUB_TOKEN;
+  const repo = (process.env.GITHUB_REPO || "Azeem1252/gaming-editorial")
+    .replace(/^https?:\/\/github\.com\//, "")
+    .replace(/\/+$/, "");
+  const branch = process.env.GITHUB_BRANCH || "main";
+  if (!token || !repo) return false;
+
+  try {
+    const filePath = `content/posts/${slug}.json`;
+    const apiUrl = `https://api.github.com/repos/${repo}/contents/${filePath}`;
+
+    let sha: string | undefined = undefined;
+    const checkRes = await fetch(`${apiUrl}?ref=${branch}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "ContentPipelineAgent/2.0"
+      }
+    });
+    if (checkRes.ok) {
+      const existing = await checkRes.json();
+      sha = existing.sha;
+    }
+
+    const commitBody = {
+      message: `Publish article: ${article.title}`,
+      content: Buffer.from(JSON.stringify(article, null, 2), "utf-8").toString("base64"),
+      branch,
+      ...(sha ? { sha } : {})
+    };
+
+    const commitRes = await fetch(apiUrl, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+        "User-Agent": "ContentPipelineAgent/2.0"
+      },
+      body: JSON.stringify(commitBody)
+    });
+
+    return commitRes.ok;
+  } catch (err) {
+    console.error("[Storage] GitHub API commit error:", err);
+    return false;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -92,8 +171,17 @@ export async function POST(request: NextRequest) {
       publishedAt: new Date().toISOString(),
     };
 
-    // 3. Storage: Save or upsert to content/posts/[slug].mdx
-    // Format frontmatter for MDX
+    const storedEngines: string[] = [];
+
+    // Storage 1: Upstash Redis REST (Instant 0s publishing)
+    const upstashSaved = await saveToUpstash(cleanSlug, article);
+    if (upstashSaved) storedEngines.push("upstash_redis");
+
+    // Storage 2: GitHub API Direct Cloud Commit
+    const githubSaved = await saveToGitHub(cleanSlug, article);
+    if (githubSaved) storedEngines.push("github_api");
+
+    // Storage 3: Local Disk / Serverless temp
     const frontmatter = [
       "---",
       `title: ${JSON.stringify(article.title)}`,
@@ -115,7 +203,6 @@ export async function POST(request: NextRequest) {
       path.join(os.tmpdir(), "posts"),
     ];
 
-    let saved = false;
     for (const dir of targetDirs) {
       try {
         if (!fs.existsSync(dir)) {
@@ -127,16 +214,15 @@ export async function POST(request: NextRequest) {
           JSON.stringify(article, null, 2),
           "utf-8"
         );
-        saved = true;
+        storedEngines.push(`disk:${path.basename(dir)}`);
         break;
       } catch (writeErr: any) {
-        // Fallback to next directory if current one is read-only (e.g. Vercel serverless)
-        console.warn(`Write to ${dir} failed, attempting fallback:`, writeErr?.message);
+        // Fallback gracefully on read-only serverless filesystems
       }
     }
 
-    if (!saved) {
-      throw new Error("Unable to write article to disk or temporary storage");
+    if (storedEngines.length === 0) {
+      throw new Error("Unable to write article to any persistent storage or temporary storage");
     }
 
     // Revalidate paths in Next.js cache
@@ -154,6 +240,7 @@ export async function POST(request: NextRequest) {
         status: "success",
         slug: cleanSlug,
         url: `/posts/${cleanSlug}`,
+        engines: storedEngines,
       },
       { status: 200 }
     );

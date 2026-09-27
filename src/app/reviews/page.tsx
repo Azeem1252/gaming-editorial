@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getAllPosts } from "@/lib/posts";
+import { getAllPosts, getAllPostsAsync } from "@/lib/posts";
 import PostCard from "@/components/PostCard";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +9,9 @@ export const metadata: Metadata = {
   description: "Every verdict, scored and summarized.",
 };
 
-export default function ReviewsPage() {
-  const reviews = getAllPosts().filter((p) => p.kind === "Review");
+export default async function ReviewsPage() {
+  const all = await getAllPostsAsync();
+  const reviews = all.filter((p) => p.kind === "Review");
 
   return (
     <main>

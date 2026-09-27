@@ -338,13 +338,41 @@ export function getPostBySlug(slug: string): Post | undefined {
 }
 
 export async function getPostBySlugAsync(slug: string): Promise<Post | undefined> {
+  // 1. Check local disk (content/posts or /tmp/posts)
   const local = getPostBySlug(slug);
   if (local) return local;
 
-  // Remote GitHub Raw fallback (public repo, fast CDN)
+  // 2. Check Upstash Redis REST (0s serverless persistent KV)
+  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/+$/, "");
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (upstashUrl && upstashToken) {
+    try {
+      const res = await fetch(`${upstashUrl}/get/post:${slug}`, {
+        headers: { Authorization: `Bearer ${upstashToken}` },
+        next: { revalidate: 30 },
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (body && body.result) {
+          const data = typeof body.result === "string" ? JSON.parse(body.result) : body.result;
+          if (data && (data.title || data.slug)) {
+            return formatPostFromData(data, slug, data.content || "");
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Reader] Upstash fetch error:", e);
+    }
+  }
+
+  // 3. Remote GitHub Raw fallback (public repo, fast CDN)
+  const repo = (process.env.GITHUB_REPO || "Azeem1252/gaming-editorial")
+    .replace(/^https?:\/\/github\.com\//, "")
+    .replace(/\/+$/, "");
+  const branch = process.env.GITHUB_BRANCH || "main";
   try {
     const rawRes = await fetch(
-      `https://raw.githubusercontent.com/Azeem1252/gaming-editorial/main/content/posts/${slug}.json`,
+      `https://raw.githubusercontent.com/${repo}/${branch}/content/posts/${slug}.json`,
       { next: { revalidate: 60 } }
     );
     if (rawRes.ok) {
@@ -358,5 +386,39 @@ export async function getPostBySlugAsync(slug: string): Promise<Post | undefined
   }
 
   return undefined;
+}
+
+export async function getAllPostsAsync(): Promise<Post[]> {
+  const baseList = getAllPosts();
+  const seenSlugs = new Set(baseList.map((p) => p.slug));
+  const dynamicList: Post[] = [...baseList];
+
+  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/+$/, "");
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (upstashUrl && upstashToken) {
+    try {
+      const indexRes = await fetch(`${upstashUrl}/smembers/posts:index`, {
+        headers: { Authorization: `Bearer ${upstashToken}` },
+        next: { revalidate: 30 },
+      });
+      if (indexRes.ok) {
+        const indexData = await indexRes.json();
+        const slugs: string[] = Array.isArray(indexData.result) ? indexData.result : [];
+        for (const slug of slugs) {
+          if (!seenSlugs.has(slug)) {
+            const p = await getPostBySlugAsync(slug);
+            if (p) {
+              dynamicList.push(p);
+              seenSlugs.add(slug);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Reader] Upstash getAllPostsAsync error:", e);
+    }
+  }
+
+  return dynamicList.sort((a, b) => (b.dateISO || "").localeCompare(a.dateISO || ""));
 }
 
